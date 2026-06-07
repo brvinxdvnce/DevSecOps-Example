@@ -38,7 +38,7 @@ jobs:
       - name: SAST – Semgrep Scan
         run: |
           semgrep scan \
-            --config "src/SAST-Rules/sast-rules.yml" \
+            --config "SAST-Rules/sast-rules.yml" \
             --config "p/csharp" \
             --config "p/security-audit" \
             --error
@@ -63,13 +63,16 @@ jobs:
           dotnet build --no-restore --configuration Release
 
       - name: Run application
-        run: dotnet run --no-build --configuration Release --urls "http://0.0.0.0:5000" &
+        run: |
+          export ASPNETCORE_URLS="http://0.0.0.0:5000"
+          export ASPNETCORE_ENVIRONMENT="Development"
+          dotnet run --no-build --configuration Release &
 
       - name: Wait for app to be ready
         run: |
           echo "Waiting for app..."
           for i in $(seq 1 15); do
-            curl -sf http://localhost:5000/openapi/v1.json && echo "App is up!" && exit 0
+            curl -sf http://127.0.0.1:5000/openapi/v1.json && echo "App is up!" && exit 0
             echo "Attempt $i failed, retrying in 3s..."
             sleep 3
           done
@@ -81,7 +84,7 @@ jobs:
             --network host \
             -v "${PWD}:/zap/wrk/:rw" \
             zaproxy/zap-stable zap-api-scan.py \
-              -t "http://localhost:5000/openapi/v1.json" \
+              -t "http://127.0.0.1:5000/openapi/v1.json" \
               -f openapi \
               -c "/zap/wrk/ZAP-Rules/zap-rules.conf" \
               -I
