@@ -23,7 +23,13 @@ jobs:
         run: dotnet restore
 
       - name: SCA – Check vulnerable NuGet packages
-        run: dotnet list package --vulnerable --include-transitive
+        run: |
+          dotnet list package --vulnerable --include-transitive > vuln.txt
+          cat vuln.txt
+          if grep -q "High\|Critical\|Moderate" vuln.txt; then
+          echo "❌ Найдены уязвимости, пайплайн остановлен"
+          exit 1
+          fi
 
   sast:
     name: "SAST – Semgrep Scan"
