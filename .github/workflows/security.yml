@@ -7,7 +7,8 @@ on:
     branches: [ "main", "master" ]
 
 jobs:
-  sast_and_sca:
+  sca:
+    name: "SCA – Vulnerable NuGet Packages"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -18,14 +19,35 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: SCA - Check vulnerable NuGet packages
-        run: dotnet list package --vulnerable
+      - name: Restore dependencies
+        run: dotnet restore
 
-      - name: SAST - Semgrep Scan
-        uses: returntocorp/semgrep-action@v1
-        with:
-          config: "src/SAST-Rules/sast-rules.yml p/csharp p/security-audit"
-  
+      - name: SCA – Check vulnerable NuGet packages
+        run: dotnet list package --vulnerable --include-transitive
+
+  sast:
+    name: "SAST – Semgrep Scan"
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: SAST – Semgrep Scan
+        run: >
+          semgrep scan
+          --config "src/SAST-Rules/sast-rules.yml"
+          --config "p/csharp"
+          --config "p/security-audit"
+          --error
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+  dast:
+    name: "DAST – OWASP ZAP API Scan"
+    runs-on: ubuntu-latest
+    steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -34,11 +56,31 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Build and Run App and DAST - OWASP ZAP API Scan
+      - name: Restore & Build
         run: |
-          dotnet build
-          dotnet run --urls "http://0.0.0.0:5000" &
-          sleep 10 
-          docker run --rm -v "${PWD}:/zap/wrk/:rw" -t zaproxy/zap-stable zap-api-scan.py -t "http://host.docker.internal:5176/openapi/v1.json" -f openapi -c "/zap/wrk/ZAP-Rules/zap-rules.conf"
+          dotnet restore
+          dotnet build --no-restore --configuration Release
 
-     
+      - name: Run application
+        run: dotnet run --no-build --configuration Release --urls "http://0.0.0.0:5000" &
+
+      - name: Wait for app to be ready
+        run: |
+          echo "Waiting for app..."
+          for i in $(seq 1 15); do
+            curl -sf http://localhost:5000/openapi/v1.json && echo "App is up!" && exit 0
+            echo "Attempt $i failed, retrying in 3s..."
+            sleep 3
+          done
+          echo "App did not start in time" && exit 1
+
+      - name: DAST – OWASP ZAP API Scan
+        run: |
+          docker run --rm \
+            --network host \
+            -v "${PWD}:/zap/wrk/:rw" \
+            zaproxy/zap-stable zap-api-scan.py \
+              -t "http://localhost:5000/openapi/v1.json" \
+              -f openapi \
+              -c "/zap/wrk/ZAP-Rules/zap-rules.conf" \
+              -I
