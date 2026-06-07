@@ -58,24 +58,35 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore & Build
+        # Собираем в Debug, чтобы OpenAPI эндпоинты гарантированно сгенерировались
         run: |
           dotnet restore
-          dotnet build --no-restore --configuration Release
+          dotnet build --no-restore --configuration Debug
 
       - name: Run application
+        # Запускаем из папки Debug. Пишем логи приложения в app.log, чтобы они не засоряли консоль, но были доступны при падении.
         run: |
           export ASPNETCORE_URLS="http://0.0.0.0:5000"
           export ASPNETCORE_ENVIRONMENT="Development"
-          dotnet bin/Release/net10.0/DevSecOps-Example.dll &
+          dotnet bin/Debug/net10.0/DevSecOps-Example.dll > app.log 2>&1 &
 
       - name: Wait for app to be ready
         run: |
           echo "Waiting for app..."
-          for i in $(seq 1 15); do
-            curl -sf http://127.0.0.1:5000/openapi/v1.json && echo "App is up!" && exit 0
-            echo "Attempt $i failed, retrying in 3s..."
+          for i in $(seq 1 20); do
+            # Проверяем доступность схемы. Если ок — выходим из цикла.
+            if curl -sf http://127.0.0.1:5000/openapi/v1.json > /dev/null; then
+              echo "App is up and OpenAPI schema is ready!"
+              exit 0
+            fi
+            echo "Attempt $i: App is not ready yet, retrying in 3s..."
             sleep 3
           done
+          
+          # Если не поднялось — выводим логи самого приложения .NET, чтобы сразу увидеть ошибку в консоли GitHub Actions
+          echo "=== APPLICATION LOGS ==="
+          cat app.log
+          echo "========================"
           echo "App did not start in time" && exit 1
 
       - name: DAST – OWASP ZAP API Scan
