@@ -45,57 +45,57 @@ jobs:
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
 
-  dast:
-    name: "DAST – OWASP ZAP API Scan"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+dast:
+  name: "DAST – OWASP ZAP API Scan"
+  runs-on: ubuntu-latest
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Restore & Build
-        # Собираем в Debug, чтобы OpenAPI эндпоинты гарантированно сгенерировались
-        run: |
-          dotnet restore
-          dotnet build --no-restore --configuration Debug
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
 
-      - name: Run application
-        # Запускаем из папки Debug. Пишем логи приложения в app.log, чтобы они не засоряли консоль, но были доступны при падении.
-        run: |
-          export ASPNETCORE_URLS="http://0.0.0.0:5000"
-          export ASPNETCORE_ENVIRONMENT="Development"
-          dotnet bin/Debug/net10.0/DevSecOps-Example.dll > app.log 2>&1 &
+    - name: Restore dependencies
+      run: dotnet restore
 
-      - name: Wait for app to be ready
-        run: |
-          echo "Waiting for app..."
-          for i in $(seq 1 20); do
-            # Проверяем доступность схемы. Если ок — выходим из цикла.
-            if curl -sf http://127.0.0.1:5000/openapi/v1.json > /dev/null; then
-              echo "App is up and OpenAPI schema is ready!"
-              exit 0
-            fi
-            echo "Attempt $i: App is not ready yet, retrying in 3s..."
-            sleep 3
-          done
-          
-          # Если не поднялось — выводим логи самого приложения .NET, чтобы сразу увидеть ошибку в консоли GitHub Actions
-          echo "=== APPLICATION LOGS ==="
-          cat app.log
-          echo "========================"
-          echo "App did not start in time" && exit 1
+    - name: Publish Application
+      # Команда publish соберет проект (автоматически найдет .csproj) и положит готовую DLL в папку ./out
+      run: dotnet publish --configuration Debug --output ./out
 
-      - name: DAST – OWASP ZAP API Scan
-        run: |
-          docker run --rm \
-            --network host \
-            -v "${PWD}:/zap/wrk/:rw" \
-            zaproxy/zap-stable zap-api-scan.py \
-              -t "http://127.0.0.1:5000/openapi/v1.json" \
-              -f openapi \
-              -c "/zap/wrk/ZAP-Rules/zap-rules.conf" \
-              -I
+    - name: Run application
+      # Теперь мы точно знаем, где лежит файл, независимо от структуры папок
+      run: |
+        export ASPNETCORE_URLS="http://0.0.0.0:5000"
+        export ASPNETCORE_ENVIRONMENT="Development"
+        dotnet ./out/DevSecOps-Example.dll > app.log 2>&1 &
+
+    - name: Wait for app to be ready
+      run: |
+        echo "Waiting for app..."
+        for i in $(seq 1 20); do
+          if curl -sf http://127.0.0.1:5000/openapi/v1.json > /dev/null; then
+            echo "App is up and OpenAPI schema is ready!"
+            exit 0
+          fi
+          echo "Attempt $i: App is not ready yet, retrying in 3s..."
+          sleep 3
+        done
+        
+        echo "=== APPLICATION LOGS ==="
+        cat app.log
+        echo "========================"
+        echo "App did not start in time" && exit 1
+
+    - name: DAST – OWASP ZAP API Scan
+      run: |
+        docker run --rm \
+          --network host \
+          -v "${PWD}:/zap/wrk/:rw" \
+          zaproxy/zap-stable zap-api-scan.py \
+            -t "http://127.0.0.1:5000/openapi/v1.json" \
+            -f openapi \
+            -c "/zap/wrk/ZAP-Rules/zap-rules.conf" \
+            -I
