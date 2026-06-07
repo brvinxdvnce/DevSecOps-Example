@@ -1,0 +1,52 @@
+﻿name: Security Pipeline
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  sast_and_sca:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: SCA - Check vulnerable NuGet packages
+        run: dotnet list package --vulnerable
+
+      - name: SAST - Semgrep Scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: "src/SAST-Rules/sast-rules.yml p/csharp p/security-audit"
+  
+  dast:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build and Run App
+        run: |
+          dotnet build
+          dotnet run --urls "http://0.0.0.0:5000" &
+          sleep 10 
+
+      - name: DAST - OWASP ZAP API Scan
+        uses: zaproxy/action-api-scan@v0.5.0
+        with:
+          target: 'http://localhost:5000/openapi/v1.json'
+          format: 'openapi'
+          fail_action: true
+          rules_file_name: 'ZAP-Rules/zap-rules.conf'

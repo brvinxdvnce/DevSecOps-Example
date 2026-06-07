@@ -1,0 +1,32 @@
+﻿rules:
+  # 1. команднуая инъекция
+  - id: csharp-command-injection
+    languages: [csharp]
+    severity: ERROR
+    message: "ызазыззаы попался на командной иньекции"
+    pattern: Process.Start("cmd.exe", $ARG + $VAR)
+
+  # 2. поиск чтения файлов без проверки пути
+  - id: csharp-path-traversal
+    languages: [csharp]
+    severity: ERROR
+    message: "ТЫ СЛИЛ ВСЕ ФАЙЛЫ ищи себя в..."
+    patterns:
+      - pattern-either:
+          - pattern: System.IO.File.ReadAllText($ARG)
+          - pattern: File.ReadAllText($ARG)
+      - pattern-not: File.ReadAllText("...")
+  
+  # 3. потенциального XSS в Result
+  - id: csharp-xss-content
+    languages: [csharp]
+    severity: WARNING
+    message: "XSS звучит хайпово"
+    patterns:
+      - pattern-either:
+          - pattern: Content($HTML, "text/html")
+          - pattern: Results.Content($HTML, "text/html")
+      # Ищем, была ли строка $HTML склеена с помощью интерполяции ($"...")
+      - pattern-inside: |
+          var $HTML = $"...$VAR...";
+          ...
