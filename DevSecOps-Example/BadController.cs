@@ -9,12 +9,12 @@ using System.IO;
 public class VulnerableController : ControllerBase
 {
     // SAST: опасный вызов Process.Start с пользовательским вводом
-    [HttpGet("exec")]
+    /*[HttpGet("exec")]
     public IActionResult RunCommand(string cmd)
     {
         var process = Process.Start("cmd.exe", "/c " + cmd);  // Semgrep найдёт это
         return Ok($"Executed: {cmd}");
-    }
+    }*/
 
     // SAST + DAST: XSS через возврат сырого HTML
     [HttpGet("greet")]

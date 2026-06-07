@@ -15,3 +15,4 @@ docker run --rm -t zaproxy/zap-stable zap-api-scan.py -t "http://host.docker.int
 
 
 docker run --rm -v "${PWD}:/zap/wrk/:rw" -t zaproxy/zap-stable zap-api-scan.py -t "http://host.docker.internal:5176/openapi/v1.json" -f openapi -c "/zap/wrk/ZAP-Rules/zap-rules.conf"
+
