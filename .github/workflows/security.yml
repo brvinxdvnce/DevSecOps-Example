@@ -45,7 +45,6 @@ jobs:
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
 
-
 dast:
   name: "DAST – OWASP ZAP API Scan"
   runs-on: ubuntu-latest
