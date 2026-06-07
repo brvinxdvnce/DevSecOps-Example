@@ -28,19 +28,20 @@ jobs:
   sast:
     name: "SAST – Semgrep Scan"
     runs-on: ubuntu-latest
-    container:
-      image: semgrep/semgrep
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install Semgrep
+        run: pip install semgrep
+
       - name: SAST – Semgrep Scan
-        run: >
-          semgrep scan
-          --config "src/SAST-Rules/sast-rules.yml"
-          --config "p/csharp"
-          --config "p/security-audit"
-          --error
+        run: |
+          semgrep scan \
+            --config "src/SAST-Rules/sast-rules.yml" \
+            --config "p/csharp" \
+            --config "p/security-audit" \
+            --error
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
 
