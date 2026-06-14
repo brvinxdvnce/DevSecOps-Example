@@ -51,11 +51,10 @@ jobs:
             zap-api-scan.py \
             -t http://localhost:5176/openapi/v1.json \
             -f openapi \
-            -c ZAP-Rules/zap-rules.conf \
+            -c /zap/wrk/ZAP-Rules/zap-rules.conf \
             -r zap-output/zap-report.html \
             -w zap-output/zap-report.md \
-            -J zap-output/zap-report.json \
-            -I WARN
+            -J zap-output/zap-report.json
 
       - name: Upload ZAP reports
         if: always()
