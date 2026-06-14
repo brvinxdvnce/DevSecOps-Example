@@ -55,7 +55,7 @@ jobs:
             -r zap-output/zap-report.html \
             -w zap-output/zap-report.md \
             -J zap-output/zap-report.json \
-            -I
+            -I WARN
 
       - name: Upload ZAP reports
         if: always()
