@@ -1,0 +1,67 @@
+﻿name: OWASP ZAP DAST
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  zap:
+    name: Run OWASP ZAP API Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+
+      - name: Restore dependencies
+        run: dotnet restore DevSecOps-Example.sln
+
+      - name: Start application
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ASPNETCORE_URLS: http://localhost:5176
+        run: |
+          dotnet run --project DevSecOps-Example/DevSecOps-Example.csproj \
+            --no-restore > app.log 2>&1 &
+
+      - name: Wait for application
+        run: |
+          timeout 120 bash -c \
+            'until curl -fsS http://localhost:5176/openapi/v1.json > /dev/null; \
+             do sleep 3; done' \
+          || (cat app.log && exit 1)
+
+      - name: Run OWASP ZAP API scan
+        run: |
+          mkdir -p zap-output
+          docker run --rm --network host --user root \
+            -v "${{ github.workspace }}:/zap/wrk:rw" \
+            -w /zap/wrk \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-api-scan.py \
+            -t http://localhost:5176/openapi/v1.json \
+            -f openapi \
+            -c ZAP-Rules/zap-rules.conf \
+            -r zap-output/zap-report.html \
+            -w zap-output/zap-report.md \
+            -J zap-output/zap-report.json \
+            -I
+
+      - name: Upload ZAP reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-dast-report
+          path: |
+            zap-output/
+            app.log 
